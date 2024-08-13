@@ -1,9 +1,14 @@
-from flask import Flask, jsonify, json # 这个用不到，建议删除
+"""
+文件开头可以写类似于这样的doc string，简要描述该文件是干什么的
+"""
+
+from typing import Optional
+from flask import Flask, jsonify, json  # 这个用不到，建议删除
 import requests
 import re
 # import顺序应该是内置库在上，第三方库在下
 
-app = Flask(__name__) # 这个用不到，建议删除
+app = Flask(__name__)  # 这个用不到，建议删除
 BASE_URL = "http://localhost:5000"
 
 
@@ -20,7 +25,10 @@ def get_messages():
         return None
 
 
-def get_message_by_id(id_: int):
+def get_message_by_id(id_: int):  # id的命名，建议写成message_id
+    # return的typing也建议写一下,类似于这样：
+    # def get_message_by_id(message_id:int)->Dict[str,Any]:
+    #    ...
     """
     get the body of message by ID
     :param id_: id
@@ -28,9 +36,10 @@ def get_message_by_id(id_: int):
     """
     try:
         response = requests.get(f"{BASE_URL}/message/{id_}")
-        return response.json()['body']
+        return response.json()["body"]
     except requests.exceptions.RequestException as e:
-        print("An error occurred:", e)
+        # 这样的try except 重复出现了多次，建议统一封装一下
+        print("An error occurred:", e)  # 错误就打log，不建议用print
         return None
 
 
@@ -48,7 +57,7 @@ def extract_url(msg: str):
         return None
 
 
-def get_log_file(url_log: str):
+def get_log_file(url_log: str):  # 命名：url_log-> log_url
     """
 
     :param url_log:
@@ -62,6 +71,9 @@ def get_log_file(url_log: str):
         return None
 
 
+import dataclasses
+
+
 def parse_log(id_: int, log_text: str):
     """
 
@@ -69,8 +81,16 @@ def parse_log(id_: int, log_text: str):
     :param log_text: log
     :return: str, errors
     """
+    # error的结构应该是什么样？建议定义一个dataclass，类似于：
+    # @dataclasses.dataclass
+    # class ErrorLog:
+    #    log_id:int
+    #    timestamp:int
+    #    error_msg:str
+    #    traceback:Optional[str]
+    # 这样errors的类型应该就是List[ErrorLog]
     errors = []
-    lines = log_text.split("\n")
+    lines = log_text.split("\n")  # 这里应该是readline，而不是手动分割
     for line in lines:
         contents = line.split(": ")
         if contents[0] == "ERROR":
@@ -78,6 +98,7 @@ def parse_log(id_: int, log_text: str):
             timestamp, error_msg = contents[1].split(",")
             error["error message"] = error_msg
             error["timestamp"] = timestamp
+            # traceback 建议直接在这里顺便加到error里
             errors.append(error)
     return errors
 
@@ -98,6 +119,7 @@ def parse_log_with_stacktraces(msg_id: int, log_text: str):
             timestamp, error_msg = contents[1].split(" - ")
             error["error message"] = error_msg
             error["timestamp"] = timestamp
+            # 这里出现了与 parse_log一样的重复代码
             i += 1
             trace_stack = ""
             while lines[i] != "":
@@ -111,25 +133,26 @@ def parse_log_with_stacktraces(msg_id: int, log_text: str):
     return errors
 
 
-def post_report():
+def post_report():  # 命名：建议改成 report_log之类
     """
 
     :return:
     """
     ids = get_messages()
     errors = []
-    for id_ in ids:
+    for id_ in (
+        ids
+    ):  # id_ 这种命名风格在python中不常见，可改为_id,或者使用更有意义的名称：message_id
         message = get_message_by_id(id_)
         url = extract_url(message)
         log = get_log_file(url)
         errors.extend(parse_log_with_stacktraces(id_, log))
     try:
         response = requests.post(f"{BASE_URL}/report", json=json.dumps(errors))
-        # 这里不建议把error直接打包，不然结构不清晰，建议构件一个数据结构，类似于这样：
+        # 这里不建议把error直接json.dumps，不然结构不清晰，建议构件一个数据结构，类似于这样：
         # {errors: [
         #    {
         #        id:1,
-        #        level: ERROR,
         #        message: xxx,
         #        traceback: xxx
         #    }
@@ -139,5 +162,5 @@ def post_report():
         print("An error occurred:", e)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     post_report()
