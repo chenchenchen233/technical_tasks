@@ -2,7 +2,6 @@
 文件开头可以写类似于这样的doc string，简要描述该文件是干什么的
 """
 
-from typing import Optional
 from flask import Flask, jsonify, json  # 这个用不到，建议删除
 import requests
 import re
@@ -71,9 +70,6 @@ def get_log_file(url_log: str):  # 命名：url_log-> log_url
     except requests.exceptions.RequestException as e:
         print("An error occurred:", e)
         return None
-
-
-import dataclasses
 
 
 def parse_log(id_: int, log_text: str):
