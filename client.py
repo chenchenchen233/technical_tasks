@@ -1,8 +1,9 @@
-from flask import Flask, jsonify, json
+from flask import Flask, jsonify, json # 这个用不到，建议删除
 import requests
 import re
+# import顺序应该是内置库在上，第三方库在下
 
-app = Flask(__name__)
+app = Flask(__name__) # 这个用不到，建议删除
 BASE_URL = "http://localhost:5000"
 
 
@@ -124,6 +125,15 @@ def post_report():
         errors.extend(parse_log_with_stacktraces(id_, log))
     try:
         response = requests.post(f"{BASE_URL}/report", json=json.dumps(errors))
+        # 这里不建议把error直接打包，不然结构不清晰，建议构件一个数据结构，类似于这样：
+        # {errors: [
+        #    {
+        #        id:1,
+        #        level: ERROR,
+        #        message: xxx,
+        #        traceback: xxx
+        #    }
+        # ]}，直接把这个json report就行，也不用json.dumps
         print(response)
     except requests.exceptions.RequestException as e:
         print("An error occurred:", e)
