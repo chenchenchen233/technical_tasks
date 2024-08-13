@@ -64,8 +64,10 @@ def get_log_file(url_log: str):  # 命名：url_log-> log_url
     :return: str, log file text
     """
     try:
-        response = requests.get(url_log)
+        response = requests.get(url_log)  #
         return response.text
+        # 看server.py文件，这里拿到的应该是文件，而不是直接的text
+        # 建议测试一下；如果是文件，可保存成tmp file
     except requests.exceptions.RequestException as e:
         print("An error occurred:", e)
         return None
