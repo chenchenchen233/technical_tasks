@@ -19,8 +19,6 @@ def get_messages():
         return None
 
 
-
-
 def get_message_by_id(id_: int):
     """
     get the body of message by ID
@@ -63,7 +61,7 @@ def get_log_file(url_log: str):
         return None
 
 
-def parse_log(id_:int, log_text:str):
+def parse_log(id_: int, log_text: str):
     """
 
     :param id_: ID
@@ -82,7 +80,8 @@ def parse_log(id_:int, log_text:str):
             errors.append(error)
     return errors
 
-def parse_log_with_tracestack(id_: int, log_text: str):
+
+def parse_log_with_stacktraces(msg_id: int, log_text: str):
     """
     extract error timestamp, error message from the log content
     :param log_text:
@@ -94,8 +93,8 @@ def parse_log_with_tracestack(id_: int, log_text: str):
     while i < len(lines):
         contents = lines[i].split(": ")
         if contents[0] == "ERROR":
-            error = {"ID": id_}
-            timestamp, error_msg = contents[1].split(",")
+            error = {"ID": msg_id}
+            timestamp, error_msg = contents[1].split(" - ")
             error["error message"] = error_msg
             error["timestamp"] = timestamp
             i += 1
@@ -111,8 +110,7 @@ def parse_log_with_tracestack(id_: int, log_text: str):
     return errors
 
 
-@app.route('/report', methods=['GET'])
-def get_report():
+def post_report():
     """
 
     :return:
@@ -123,9 +121,13 @@ def get_report():
         message = get_message_by_id(id_)
         url = extract_url(message)
         log = get_log_file(url)
-        errors.extend(parse_log(id_, log))
-    return json.dumps(errors)
+        errors.extend(parse_log_with_stacktraces(id_, log))
+    try:
+        response = requests.post(f"{BASE_URL}/report", json=json.dumps(errors))
+        print(response)
+    except requests.exceptions.RequestException as e:
+        print("An error occurred:", e)
 
 
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    post_report()
