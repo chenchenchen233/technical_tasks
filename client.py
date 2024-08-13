@@ -1,43 +1,63 @@
-from flask import Flask, jsonify, json
-import requests
+"""
+This is a client application, which parses the error messages and send message id, timestamp, error, and stack trace as
+results to the /report endpoint.
+"""
+
+import logging
 import re
 
-app = Flask(__name__)
+import requests
+
 BASE_URL = "http://localhost:5000"
 
 
-def get_messages():
+def send_request(url: str) -> requests.Response | None:
+    """
+    send request to url link, fetch data if it response
+    :param url:
+    :return:
+    """
+    try:
+        response = requests.get(url)
+        if response.status_code == 200:
+            return response
+        else:
+            return None
+    except requests.exceptions.RequestException as e:
+        logging.exception(e)
+        return None
+
+
+def get_messages() -> list | None:
     """
     get list of IDs from /messages endpoint
     :return: json, all IDs
     """
-    try:
-        response = requests.get(f"{BASE_URL}/messages")
+    response = send_request(f"{BASE_URL}/messages")
+    if response:
         return response.json()
-    except requests.exceptions.RequestException as e:
-        print("An error occurred:", e)
+    else:
         return None
 
 
-def get_message_by_id(id_: int):
+def get_message_by_id(msg_id: int) -> str | None:
     """
     get the body of message by ID
-    :param id_: id
-    :return: str, message
+    :param msg_id:
+    :return:  message
     """
-    try:
-        response = requests.get(f"{BASE_URL}/message/{id_}")
+    response = send_request(f"{BASE_URL}/message/{msg_id}")
+    if response:
         return response.json()['body']
-    except requests.exceptions.RequestException as e:
-        print("An error occurred:", e)
+    else:
         return None
 
 
-def extract_url(msg: str):
+def extract_url(msg: str) -> str | None:
     """
     extract URL from the message
     :param msg: message to be parsed
-    :return:  str, URL
+    :return:   URL
     """
     url_format = r"http[s]?://\S+"
     match = re.search(url_format, msg)
@@ -47,33 +67,32 @@ def extract_url(msg: str):
         return None
 
 
-def get_log_file(url_log: str):
+def get_log_file(log_url: str):
     """
 
-    :param url_log:
-    :return: str, log file text
+    :param log_url:
+    :return:  log file text
     """
-    try:
-        response = requests.get(url_log)
-        return response.text
-    except requests.exceptions.RequestException as e:
-        print("An error occurred:", e)
-        return None
+    response = send_request(log_url)
+    if response:
+        with open("tmp.txt", 'w') as file:
+            file.writelines(response.text)
 
 
-def parse_log(id_: int, log_text: str):
+def parse_log(msg_id: int) -> list:
     """
 
-    :param id_: ID
+    :param msg_id:
     :param log_text: log
-    :return: str, errors
+    :return: errors
     """
     errors = []
-    lines = log_text.split("\n")
+    with open("tmp.txt", "r") as f:
+        lines = f.read().splitlines()
     for line in lines:
         contents = line.split(": ")
         if contents[0] == "ERROR":
-            error = {"ID": id_}
+            error = {"ID": msg_id}
             timestamp, error_msg = contents[1].split(",")
             error["error message"] = error_msg
             error["timestamp"] = timestamp
@@ -81,14 +100,15 @@ def parse_log(id_: int, log_text: str):
     return errors
 
 
-def parse_log_with_stacktraces(msg_id: int, log_text: str):
+def parse_log_with_stacktraces(msg_id: int) -> list:
     """
     extract error timestamp, error message from the log content
-    :param log_text:
+    :param msg_id:
     :return: list of errors
     """
     errors = []
-    lines = log_text.split("\n")
+    with open("tmp.txt", "r") as f:
+        lines = f.read().splitlines()
     i = 0
     while i < len(lines):
         contents = lines[i].split(": ")
@@ -98,11 +118,11 @@ def parse_log_with_stacktraces(msg_id: int, log_text: str):
             error["error message"] = error_msg
             error["timestamp"] = timestamp
             i += 1
-            trace_stack = ""
+            stack_trace = ""
             while lines[i] != "":
-                trace_stack += lines[i] + "\n"
+                stack_trace += lines[i] + "\n"
                 i += 1
-            error["trace stack"] = trace_stack
+            error["stack traces"] = stack_trace
             errors.append(error)
         else:
             i += 1
@@ -120,13 +140,13 @@ def post_report():
     for id_ in ids:
         message = get_message_by_id(id_)
         url = extract_url(message)
-        log = get_log_file(url)
-        errors.extend(parse_log_with_stacktraces(id_, log))
+        get_log_file(url)
+        errors.extend(parse_log_with_stacktraces(id_))
     try:
-        response = requests.post(f"{BASE_URL}/report", json=json.dumps(errors))
+        response = requests.post(f"{BASE_URL}/report", json={"errors": errors})
         print(response)
     except requests.exceptions.RequestException as e:
-        print("An error occurred:", e)
+        logging.exception(e)
 
 
 if __name__ == '__main__':
